@@ -50,61 +50,61 @@ export class ProductService {
       },
     });
   }
-
-  public async getProductGender(): Promise<string[]> {
-    return this.getDistinctValues('gender');
-  }
-
-  public async getProductMasterCategory(): Promise<string[]> {
-    return this.getDistinctValues('masterCategory');
-  }
-
-  public async getProductSubCategory(): Promise<string[]> {
-    return this.getDistinctValues('subCategory');
-  }
-
-  public async getProductArticleType(): Promise<string[]> {
-    return this.getDistinctValues('articleType');
-  }
-
-  public async getProductBaseColour(): Promise<string[]> {
-    return this.getDistinctValues('baseColour');
-  }
-
-  public async getProductSeason(): Promise<string[]> {
-    return this.getDistinctValues('season');
-  }
-
-  public async getProductYear(): Promise<string[]> {
-    return this.getDistinctValues('year');
-  }
-
-  public async getProductUsage(): Promise<string[]> {
-    return this.getDistinctValues('usage');
-  }
-
-  private async getDistinctValues(
-    columnName: keyof Product,
-  ): Promise<string[]> {
-    const values = await this.prisma.product.findMany({
-      distinct: [columnName],
-      select: { [columnName]: true },
-    });
-    return values.map((category) => category[columnName]);
-  }
-  // async getDistinctValues(columnNames: (keyof Product)[]): Promise<Record<string, string[]>> {
-  //   const distinctValues: Record<string, string[]> = {};
   //
-  //   const distinctValuesResult = await this.prisma.product.groupBy({
-  //     by: columnNames.map(columnName => ({ [columnName]: columnName })),
-  //     orderBy: columnNames.map(columnName => ({ [columnName]: 'asc' })),
-  //     select: columnNames.reduce((acc, columnName) => ({ ...acc, [columnName]: { distinct: true } }), {}),
-  //   });
-  //
-  //   columnNames.forEach(columnName => {
-  //     distinctValues[columnName] = distinctValuesResult.map(item => item[columnName]);
-  //   });
-  //
-  //   return distinctValues;
+  // public async getProductGender(): Promise<string[]> {
+  //   return this.getDistinctValues('gender');
   // }
+  //
+  // public async getProductMasterCategory(): Promise<string[]> {
+  //   return this.getDistinctValues('masterCategory');
+  // }
+  //
+  // public async getProductSubCategory(): Promise<string[]> {
+  //   return this.getDistinctValues('subCategory');
+  // }
+  //
+  // public async getProductArticleType(): Promise<string[]> {
+  //   return this.getDistinctValues('articleType');
+  // }
+  //
+  // public async getProductBaseColour(): Promise<string[]> {
+  //   return this.getDistinctValues('baseColour');
+  // }
+  //
+  // public async getProductSeason(): Promise<string[]> {
+  //   return this.getDistinctValues('season');
+  // }
+  //
+  // public async getProductYear(): Promise<string[]> {
+  //   return this.getDistinctValues('year');
+  // }
+  //
+  // public async getProductUsage(): Promise<string[]> {
+  //   return this.getDistinctValues('usage');
+  // }
+  //
+  // private async getDistinctValues(
+  //   columnName: keyof Product,
+  // ): Promise<string[]> {
+  //   const values = await this.prisma.product.findMany({
+  //     distinct: [columnName],
+  //     select: { [columnName]: true },
+  //   });
+  //   return values.map((category) => category[columnName]);
+  // }
+  // // async getDistinctValues(columnNames: (keyof Product)[]): Promise<Record<string, string[]>> {
+  // //   const distinctValues: Record<string, string[]> = {};
+  // //
+  // //   const distinctValuesResult = await this.prisma.product.groupBy({
+  // //     by: columnNames.map(columnName => ({ [columnName]: columnName })),
+  // //     orderBy: columnNames.map(columnName => ({ [columnName]: 'asc' })),
+  // //     select: columnNames.reduce((acc, columnName) => ({ ...acc, [columnName]: { distinct: true } }), {}),
+  // //   });
+  // //
+  // //   columnNames.forEach(columnName => {
+  // //     distinctValues[columnName] = distinctValuesResult.map(item => item[columnName]);
+  // //   });
+  // //
+  // //   return distinctValues;
+  // // }
 }
