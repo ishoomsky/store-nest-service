@@ -21,6 +21,7 @@ export class ArticlesController {
   @Post()
   @ApiCreatedResponse({
     type: ArticleEntity,
+    description: 'The record has been successfully created.',
   })
   create(@Body() createArticleDto: CreateArticleDto) {
     return this.articlesService.create(createArticleDto);
@@ -30,6 +31,7 @@ export class ArticlesController {
   @ApiOkResponse({
     type: ArticleEntity,
     isArray: true,
+    description: 'Returns all articles',
   })
   findAll() {
     return this.articlesService.findAll();
@@ -38,13 +40,15 @@ export class ArticlesController {
   @Get(':id')
   @ApiOkResponse({
     type: ArticleEntity,
+    description: 'Returns a single article',
   })
   findOne(@Param('id') id: string) {
     return this.articlesService.findOne(+id);
   }
 
-  @Get()
+  @Get('drafts')
   @ApiOkResponse({
+    description: 'Returns all articles that are drafts',
     type: ArticleEntity,
     isArray: true,
   })
@@ -55,6 +59,7 @@ export class ArticlesController {
   @Patch(':id')
   @ApiOkResponse({
     type: ArticleEntity,
+    description: 'The record has been successfully updated.',
   })
   update(@Param('id') id: string, @Body() updateArticleDto: UpdateArticleDto) {
     return this.articlesService.update(+id, updateArticleDto);
@@ -63,6 +68,7 @@ export class ArticlesController {
   @Delete(':id')
   @ApiOkResponse({
     type: ArticleEntity,
+    description: 'The record has been successfully deleted.',
   })
   remove(@Param('id') id: string) {
     return this.articlesService.remove(+id);
