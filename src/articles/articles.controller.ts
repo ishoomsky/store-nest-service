@@ -22,7 +22,7 @@ export class ArticlesController {
   @Post()
   @ApiCreatedResponse({
     type: ArticleEntity,
-    description: 'The record has been successfully created.',
+    description: 'The article has been successfully created.',
   })
   create(@Body() createArticleDto: CreateArticleDto) {
     return this.articlesService.create(createArticleDto);
