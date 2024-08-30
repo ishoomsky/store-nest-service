@@ -6,6 +6,7 @@ import {
   Patch,
   Param,
   Delete,
+  NotFoundException,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -21,7 +22,7 @@ export class ProductsController {
   @Post()
   @ApiCreatedResponse({
     type: ProductEntity,
-    description: 'The record has been successfully created.',
+    description: 'The product has been successfully created.',
   })
   create(@Body() createProductDto: CreateProductDto) {
     return this.productsService.create(createProductDto);
@@ -42,8 +43,13 @@ export class ProductsController {
     type: ProductEntity,
     description: 'Returns a single product',
   })
-  findOne(@Param('id') id: string) {
-    return this.productsService.findOne(id);
+  async findOne(@Param('id') id: string) {
+    const product = await this.productsService.findOne(id);
+    if (!product) {
+      throw new NotFoundException(`Product with ${id} does not exist.`);
+    }
+
+    return product;
   }
 
   @Patch(':id')
