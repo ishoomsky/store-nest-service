@@ -7,6 +7,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ── Пользователи (под будущий auth) ──────────────────────
+
+model User {
+  id        Int       @id @default(autoincrement())
+  name      String?
+  email     String    @unique
+  password  String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  articles  Article[]
+}
+
+// Блог/новости (пока вне доменного ядра каталога).
 model Article {
   id          Int      @id @default(autoincrement())
   title       String   @unique
@@ -19,22 +32,239 @@ model Article {
   authorId    Int?
 }
 
-model Product {
-  id          String  @id @default(cuid())
-  name        String
-  description String?
-  price       Float    @default(0)
-  published   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+// ── Enums ────────────────────────────────────────────────
+
+enum ProductKind {
+  PART // запчасть
+  COMPRESSOR // винтовой компрессор
+  EQUIPMENT // прочее оборудование
+  TOOL // инструмент
 }
 
-model User {
-  id        Int       @id @default(autoincrement())
-  name      String?
-  email     String    @unique
-  password  String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  articles  Article[]
+enum AttributeType {
+  STRING
+  NUMBER
+  BOOLEAN
+  OPTION // значение из справочника AttributeOption
+}
+
+// ── Справочники каталога ─────────────────────────────────
+
+model Category {
+  id         Int                 @id @default(autoincrement())
+  name       String
+  slug       String              @unique
+  parentId   Int?
+  parent     Category?           @relation("CategoryTree", fields: [parentId], references: [id])
+  children   Category[]          @relation("CategoryTree")
+  position   Int                 @default(0)
+  products   ProductCategory[]
+  primaryFor Product[]           @relation("ProductPrimaryCategory")
+  attributes CategoryAttribute[]
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  @@index([parentId])
+}
+
+model Brand {
+  id               Int               @id @default(autoincrement())
+  name             String            @unique
+  slug             String            @unique
+  logoUrl          String?
+  products         Product[]
+  compressorModels CompressorModel[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}
+
+model CompressorModel {
+  id              Int                             @id @default(autoincrement())
+  name            String
+  slug            String                          @unique
+  brandId         Int
+  brand           Brand                           @relation(fields: [brandId], references: [id])
+  attributeValues CompressorModelAttributeValue[]
+  products        Product[]                       @relation("ProductCompressorModel") // проданные листинги этой модели
+  compatibility   ProductCompatibility[] // запчасти, подходящие к модели
+  createdAt       DateTime                        @default(now())
+  updatedAt       DateTime                        @updatedAt
+
+  @@unique([brandId, name])
+}
+
+// ── Атрибуты: гибрид (справочник + JSONB-хвост) ──────────
+
+model Attribute {
+  id                  Int                             @id @default(autoincrement())
+  code                String                          @unique // "pressure_bar"
+  name                String // "Давление"
+  type                AttributeType
+  unit                String? // "бар", "кВт", "мм"
+  isFilterable        Boolean                         @default(true)
+  options             AttributeOption[]
+  categories          CategoryAttribute[]
+  productValues       ProductAttributeValue[]
+  compressorModelVals CompressorModelAttributeValue[]
+  createdAt           DateTime                        @default(now())
+  updatedAt           DateTime                        @updatedAt
+}
+
+model AttributeOption {
+  id                Int                             @id @default(autoincrement())
+  attributeId       Int
+  attribute         Attribute                       @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  value             String
+  position          Int                             @default(0)
+  productValues     ProductAttributeValue[]
+  compressorMdlVals CompressorModelAttributeValue[]
+
+  @@unique([attributeId, value])
+}
+
+// Шаблон: какие атрибуты применимы к категории (для форм и фасетного фильтра).
+model CategoryAttribute {
+  categoryId  Int
+  attributeId Int
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  attribute   Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  required    Boolean   @default(false)
+  position    Int       @default(0)
+
+  @@id([categoryId, attributeId])
+}
+
+// Значение атрибута у товара (одна колонка на тип + ссылка на опцию).
+model ProductAttributeValue {
+  id          Int              @id @default(autoincrement())
+  productId   String
+  attributeId Int
+  product     Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attribute   Attribute        @relation(fields: [attributeId], references: [id])
+  valueString String?
+  valueNumber Decimal?         @db.Decimal(18, 4)
+  valueBool   Boolean?
+  optionId    Int?
+  option      AttributeOption? @relation(fields: [optionId], references: [id])
+
+  @@unique([productId, attributeId])
+  @@index([attributeId, valueNumber])
+  @@index([attributeId, optionId])
+}
+
+// Значение атрибута у модели компрессора (тот же справочник Attribute).
+model CompressorModelAttributeValue {
+  id                Int              @id @default(autoincrement())
+  compressorModelId Int
+  attributeId       Int
+  compressorModel   CompressorModel  @relation(fields: [compressorModelId], references: [id], onDelete: Cascade)
+  attribute         Attribute        @relation(fields: [attributeId], references: [id])
+  valueString       String?
+  valueNumber       Decimal?         @db.Decimal(18, 4)
+  valueBool         Boolean?
+  optionId          Int?
+  option            AttributeOption? @relation(fields: [optionId], references: [id])
+
+  @@unique([compressorModelId, attributeId])
+  @@index([attributeId, valueNumber])
+  @@index([attributeId, optionId])
+}
+
+// ── Товар, варианты, медиа ───────────────────────────────
+
+model Product {
+  id                String                  @id @default(cuid())
+  kind              ProductKind
+  name              String
+  slug              String                  @unique
+  description       String?
+  brandId           Int?
+  brand             Brand?                  @relation(fields: [brandId], references: [id])
+  primaryCategoryId Int?
+  primaryCategory   Category?               @relation("ProductPrimaryCategory", fields: [primaryCategoryId], references: [id])
+  compressorModelId Int? // для kind=COMPRESSOR: какая это модель
+  compressorModel   CompressorModel?        @relation("ProductCompressorModel", fields: [compressorModelId], references: [id])
+  published         Boolean                 @default(false)
+  specsExtra        Json? // редкий «хвост» характеристик, не вынесенных в атрибуты
+  categories        ProductCategory[]
+  variants          Variant[]
+  media             ProductMedia[]
+  attributeValues   ProductAttributeValue[]
+  compatibility     ProductCompatibility[] // для запчастей: к каким моделям подходит
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  @@index([brandId])
+  @@index([primaryCategoryId])
+  @@index([compressorModelId])
+  @@index([kind])
+}
+
+// M2M товар ↔ категория.
+model ProductCategory {
+  productId  String
+  categoryId Int
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  position   Int      @default(0)
+
+  @@id([productId, categoryId])
+  @@index([categoryId])
+}
+
+model Variant {
+  id             String           @id @default(cuid())
+  productId      String
+  product        Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku            String           @unique // наш артикул
+  name           String? // «G1/2», «380В», «5 л»
+  price          Decimal?         @db.Decimal(12, 2)
+  currency       String           @default("RUB")
+  priceOnRequest Boolean          @default(false)
+  stock          Int              @default(0)
+  isDefault      Boolean          @default(true)
+  crossNumbers   CrossReference[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([productId])
+}
+
+// OEM / кросс-номера для поиска аналогов.
+model CrossReference {
+  id        Int      @id @default(autoincrement())
+  variantId String
+  variant   Variant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  number    String // OEM / кросс-номер
+  source    String? // чей номер / бренд-аналог
+  createdAt DateTime @default(now())
+
+  @@unique([variantId, number])
+  @@index([number])
+}
+
+model ProductMedia {
+  id        Int     @id @default(autoincrement())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String?
+  position  Int     @default(0)
+  isPrimary Boolean @default(false)
+
+  @@index([productId])
+}
+
+// ── Совместимость запчасть ↔ модель компрессора ──────────
+
+model ProductCompatibility {
+  productId         String
+  compressorModelId Int
+  product           Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  compressorModel   CompressorModel @relation(fields: [compressorModelId], references: [id], onDelete: Cascade)
+  note              String?
+  createdAt         DateTime        @default(now())
+
+  @@id([productId, compressorModelId])
+  @@index([compressorModelId])
 }
