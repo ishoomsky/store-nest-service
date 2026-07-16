@@ -1,106 +1,221 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, ProductKind, AttributeType } from '@prisma/client';
 
-// initialize Prisma Client
 const prisma = new PrismaClient();
 
 async function main() {
-  // create two dummy users
-  const user1 = await prisma.user.upsert({
-    where: { email: 'sabin@adams.com' },
+  // ── Пользователь (под будущий auth) ──────────────────────
+  const admin = await prisma.user.upsert({
+    where: { email: 'admin@store.local' },
     update: {},
     create: {
-      email: 'sabin@adams.com',
-      name: 'Sabin Adams',
-      password: 'password-sabin',
+      email: 'admin@store.local',
+      name: 'Admin',
+      password: 'changeme', // TODO: заменить на bcrypt-хеш вместе с задачей auth
     },
   });
 
-  const user2 = await prisma.user.upsert({
-    where: { email: 'alex@ruheni.com' },
+  // ── Бренд ────────────────────────────────────────────────
+  const remeza = await prisma.brand.upsert({
+    where: { slug: 'remeza' },
+    update: {},
+    create: { name: 'Ремеза', slug: 'remeza' },
+  });
+
+  // ── Категории (дерево) ───────────────────────────────────
+  const parts = await prisma.category.upsert({
+    where: { slug: 'zapchasti' },
+    update: {},
+    create: { name: 'Запчасти', slug: 'zapchasti', position: 1 },
+  });
+  const filters = await prisma.category.upsert({
+    where: { slug: 'filtry' },
     update: {},
     create: {
-      email: 'alex@ruheni.com',
-      name: 'Alex Ruheni',
-      password: 'password-alex',
+      name: 'Фильтры',
+      slug: 'filtry',
+      parentId: parts.id,
+      position: 1,
     },
   });
-
-  // create three dummy articles
-  const post1 = await prisma.article.upsert({
-    where: { title: 'Prisma Adds Support for MongoDB' },
-    update: {
-      authorId: user1.id,
-    },
+  const consumables = await prisma.category.upsert({
+    where: { slug: 'raskhodniki' },
+    update: {},
     create: {
-      title: 'Prisma Adds Support for MongoDB',
-      body: 'Support for MongoDB has been one of the most requested features since the initial release of...',
-      description:
-        "We are excited to share that today's Prisma ORM release adds stable support for MongoDB!",
-      published: false,
-      authorId: user1.id,
+      name: 'Расходники',
+      slug: 'raskhodniki',
+      parentId: parts.id,
+      position: 2,
     },
   });
+  const compressorsCat = await prisma.category.upsert({
+    where: { slug: 'kompressory' },
+    update: {},
+    create: { name: 'Компрессоры', slug: 'kompressory', position: 2 },
+  });
 
-  const post2 = await prisma.article.upsert({
-    where: { title: "What's new in Prisma? (Q1/22)" },
-    update: {
-      authorId: user2.id,
-    },
+  // ── Атрибуты (справочник) ────────────────────────────────
+  const pressure = await prisma.attribute.upsert({
+    where: { code: 'pressure_bar' },
+    update: {},
     create: {
-      title: "What's new in Prisma? (Q1/22)",
-      body: 'Our engineers have been working hard, issuing new releases with many improvements...',
-      description:
-        'Learn about everything in the Prisma ecosystem and community from January to March 2022.',
+      code: 'pressure_bar',
+      name: 'Давление',
+      type: AttributeType.NUMBER,
+      unit: 'бар',
+    },
+  });
+  const power = await prisma.attribute.upsert({
+    where: { code: 'power_kw' },
+    update: {},
+    create: {
+      code: 'power_kw',
+      name: 'Мощность',
+      type: AttributeType.NUMBER,
+      unit: 'кВт',
+    },
+  });
+  const thread = await prisma.attribute.upsert({
+    where: { code: 'thread' },
+    update: {},
+    create: { code: 'thread', name: 'Резьба', type: AttributeType.OPTION },
+  });
+  const threadG12 = await prisma.attributeOption.upsert({
+    where: { attributeId_value: { attributeId: thread.id, value: 'G1/2' } },
+    update: {},
+    create: { attributeId: thread.id, value: 'G1/2', position: 1 },
+  });
+  await prisma.attributeOption.upsert({
+    where: { attributeId_value: { attributeId: thread.id, value: 'G3/4' } },
+    update: {},
+    create: { attributeId: thread.id, value: 'G3/4', position: 2 },
+  });
+
+  // Шаблоны атрибутов на категории (для форм/фасетного фильтра)
+  for (const [categoryId, attributeId, required] of [
+    [filters.id, thread.id, true],
+    [filters.id, pressure.id, false],
+    [compressorsCat.id, power.id, true],
+    [compressorsCat.id, pressure.id, true],
+  ] as const) {
+    await prisma.categoryAttribute.upsert({
+      where: { categoryId_attributeId: { categoryId, attributeId } },
+      update: {},
+      create: { categoryId, attributeId, required },
+    });
+  }
+
+  // ── Модель компрессора (цель совместимости) с атрибутами ─
+  const modelVk10 = await prisma.compressorModel.upsert({
+    where: { brandId_name: { brandId: remeza.id, name: 'ВК10' } },
+    update: {},
+    create: { name: 'ВК10', slug: 'remeza-vk10', brandId: remeza.id },
+  });
+  for (const [attributeId, valueNumber] of [
+    [power.id, 7.5],
+    [pressure.id, 10],
+  ] as const) {
+    await prisma.compressorModelAttributeValue.upsert({
+      where: {
+        compressorModelId_attributeId: {
+          compressorModelId: modelVk10.id,
+          attributeId,
+        },
+      },
+      update: {},
+      create: { compressorModelId: modelVk10.id, attributeId, valueNumber },
+    });
+  }
+
+  // ── Компрессор-товар, связанный с моделью ───────────────
+  const compressorProduct = await prisma.product.upsert({
+    where: { slug: 'kompressor-remeza-vk10' },
+    update: {},
+    create: {
+      kind: ProductKind.COMPRESSOR,
+      name: 'Винтовой компрессор Ремеза ВК10',
+      slug: 'kompressor-remeza-vk10',
+      description: 'Винтовой компрессор 7.5 кВт, 10 бар.',
+      brandId: remeza.id,
+      primaryCategoryId: compressorsCat.id,
+      compressorModelId: modelVk10.id,
       published: true,
-      authorId: user2.id,
+      categories: { create: [{ categoryId: compressorsCat.id }] },
+      variants: {
+        create: [
+          { sku: 'REMEZA-VK10', price: 350000, stock: 3, isDefault: true },
+        ],
+      },
+      attributeValues: {
+        create: [
+          { attributeId: power.id, valueNumber: 7.5 },
+          { attributeId: pressure.id, valueNumber: 10 },
+        ],
+      },
     },
   });
 
-  const post3 = await prisma.article.upsert({
-    where: { title: 'Prisma Client Just Became a Lot More Flexible' },
+  // ── Запчасть: категории, вариант, кросс-номера, атрибуты, совместимость ─
+  const filterPart = await prisma.product.upsert({
+    where: { slug: 'vozdushnyy-filtr-vf200' },
     update: {},
     create: {
-      title: 'Prisma Client Just Became a Lot More Flexible',
-      body: 'Prisma Client extensions provide a powerful new way to add functionality to Prisma in a type-safe manner...',
-      description:
-        'This article will explore various ways you can use Prisma Client extensions to add custom functionality to Prisma Client..',
+      kind: ProductKind.PART,
+      name: 'Воздушный фильтр VF-200',
+      slug: 'vozdushnyy-filtr-vf200',
+      description: 'Воздушный фильтр для винтовых компрессоров, резьба G1/2.',
+      brandId: remeza.id,
+      primaryCategoryId: filters.id,
       published: true,
+      categories: {
+        create: [{ categoryId: filters.id }, { categoryId: consumables.id }],
+      },
+      variants: {
+        create: [
+          {
+            sku: 'VF-200',
+            price: 1290,
+            stock: 42,
+            isDefault: true,
+            crossNumbers: {
+              create: [
+                { number: '4930153100', source: 'OEM Remeza' },
+                { number: 'P-CE03-538', source: 'аналог' },
+              ],
+            },
+          },
+        ],
+      },
+      attributeValues: {
+        create: [
+          { attributeId: thread.id, optionId: threadG12.id },
+          { attributeId: pressure.id, valueNumber: 16 },
+        ],
+      },
+      compatibility: {
+        create: [{ compressorModelId: modelVk10.id, note: 'Штатный фильтр' }],
+      },
     },
   });
 
-  const product1 = await prisma.product.upsert({
-    where: { id: 'cm050z7km00005wr01gznuama' },
-    update: {},
-    create: {
-      name: 'Product 1',
-      description: 'Product 1 description',
-      price: 99.99,
-      published: false,
-    },
+  console.log({
+    admin: admin.email,
+    brand: remeza.name,
+    categories: [
+      parts.slug,
+      filters.slug,
+      consumables.slug,
+      compressorsCat.slug,
+    ],
+    compressorModel: modelVk10.name,
+    products: [compressorProduct.slug, filterPart.slug],
   });
-
-  const product2 = await prisma.product.upsert({
-    where: { id: 'cm050z7kw00015wr0khuiquml' },
-    update: {},
-    create: {
-      name: 'Product 2',
-      description: 'Product 2 description',
-      price: 11.11,
-    },
-  });
-
-  console.log({ post1, post2, post3 });
-  console.log({ product1, product2 });
-  console.log({ user1, user2 });
 }
 
-// execute the main function
 main()
   .catch((e) => {
     console.error(e);
     process.exit(1);
   })
   .finally(async () => {
-    // close Prisma Client at the end
     await prisma.$disconnect();
   });
