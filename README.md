@@ -1,3 +1,6 @@
+> **Архивировано.** Этот репозиторий объединён в монорепо
+> [ishoomsky/store](https://github.com/ishoomsky/store) (Nx: `apps/api`). Новая разработка — там.
+
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="200" alt="Nest Logo" /></a>
 </p>
